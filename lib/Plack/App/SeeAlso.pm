@@ -16,10 +16,13 @@ use JSON;
 use Encode;
 
 use parent 'Plack::Component';
-use Plack::Util::Accessor qw(
-    Query Stylesheet Formats
-    ShortName LongName Description Source DateModified Examples 
-);
+
+# properties of the server form OpenSearch Description
+our @PROPERTIES; BEGIN { @PROPERTIES = qw(Query Stylesheet Formats Examples
+    ShortName LongName Attribution Tags Contact Description Source 
+    DateModified Developer); }
+
+use Plack::Util::Accessor @PROPERTIES;
 
 # browsers will more likely complain otherwise
 use Plack::MIME;
@@ -29,9 +32,26 @@ sub prepare_app {
     my $self = shift;
     return if $self->{app}; # already initialized
 
-    # TODO: validate options (truncate ShortName etc.)
+    # get default values from module variables
+    $self->{Stylesheet} = 'seealso.xsl' unless exists $self->{Stylesheet};
+    foreach (@PROPERTIES) {
+        no strict 'refs';
+        $self->$_( ${ref($self)."::$_"} // '' ) unless exists $self->{$_};
+    }
 
-    $self->{Stylesheet} = "seealso.xsl" unless exists $self->{Stylesheet};
+    $self->{ShortName}   = sprintf '%.16s',   $self->{ShortName} // '';
+    $self->{LongName}    = sprintf '%.48s',   $self->{LongName} // '' ;
+    $self->{Description} = sprintf '%.1024s', $self->{Description} // '';
+    $self->{Tags}        = sprintf '%.256s',  $self->{Tags} // '';
+    $self->{Attribution} = sprintf '%.256s',  $self->{Attribution} // '';
+
+    # TODO: validate
+    #   Stylesheet
+    #   Formats 
+    #   Contact
+    #   Source 
+    #   DateModified 
+    #   Examples
 
     my %formats = %{ $self->{Formats} || { } };
     delete $formats{$_} for (qw(opensearchdescription seealso _));
@@ -95,22 +115,23 @@ sub openSearchDescription {
     my ($self, $env) = @_;
     my $base = Plack::Request->new($env)->base; 
 
-    my @xml = <<XML;
-<?xml version="1.0" encoding="UTF-8"?>    
+    my @xml = '<?xml version="1.0" encoding="UTF-8"?>    
 <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" 
-  xmlns:dc="http://purl.org/dc/elements/1.1/" 
-  xmlns:dcterms="http://purl.org/dc/terms/" 
-  xmlns:seealso="http://ws.gbv.de/seealso/schema/">
-XML
+    xmlns:dc="http://purl.org/dc/elements/1.1/" 
+    xmlns:dcterms="http://purl.org/dc/terms/" 
+    xmlns:seealso="http://ws.gbv.de/seealso/schema/">';
 
-    my %prop = (
+    my @prop = (
+        map { $_ => $_ } qw(ShortName LongName Description Tags 
+            Contact Developer Attribution),
         DateModified => 'dcterms:modified',
         Source       => 'dc:source',
-        map { $_ => $_ } qw(ShortName LongName Description),
     );
-    while (my ($field,$tag) = each %prop) {
+    while (@prop) {
+        my $field = shift @prop;
+        my $tag   = shift @prop;
         my $value = $self->{$field} or next;
-        push @xml, "<$tag>"._xmlescape($value)."</$tag>";
+        push @xml, "  <$tag>"._xmlescape($value)."</$tag>";
     }
 
     foreach (@{ $self->Examples || [] }) {
@@ -122,7 +143,7 @@ XML
             . "id={searchTerms}&format=seealso&callback={callback}";
     push @xml, "  <Url type=\"text/javascript\" template=\"" . _xmlescape($tpl) . "\"/>";
 
-    push @xml, '</OpenSearchDescription>';
+    push @xml, '</OpenSearchDescription>','';
  
     return [ 200, [ "Content-Type"
             => 'application/opensearchdescription+xml; charset: utf-8' ],
@@ -146,91 +167,161 @@ sub _xmlescape {
 
 =head1 DESCRIPTION
 
-This implements a SeeAlso Linkserver Protocol (SeeAlso) server as PSGI
-application. SeeAlso is based on unAPI and OpenSearch.
+This module implements the a SeeAlso Linkserver Protocol server as PSGI
+application. SeeAlso is basically based on two HTTP protocols, 
+L<unAPI|http://unapi.info> and L<OpenSearch|http://opensearch.org> 
+(Open Search Suggestions and Open Search Description documents).
+
+You can simply implement a SeeAlso server by creating an instance of 
+Plack::App::SeeAlso or by deriving this class and implementing
 
 This module contains a SeeAlso client in form of three files (seealso.js,
 seealso.xsl, seealso.css). This client is served if no format-parameter
 was given, so you get a nice, human readable interface.
 
-=method new ( [ %options ] )
+=head1 SYNOPSIS
 
-Creates a new SeeAlso server. Supported options are:
+    # create SeeAlso server with code reference
+    my $app = Plack::App::SeeAlso->new( 
+        Query => sub {
+            my $id = shift;
+            return unless $id =~ /:/; # return undef for empty response
+            # ...
+            return [ $id, [ "label" ], 
+                          [ "hello" ], 
+                          [ "http://example.org" ] ];
+        }, ShortName => 'My Server' 
+    );
+
+    # create SeeAlso server as subclass
+    use parent 'Plack::App::SeeAlso';
+
+    our $ShortName   = 'My Server';
+    our $Contact     = 'admin@example.org';
+    our $Description = '...';
+
+    sub query {
+        my $id = shift;
+        # ...
+    }
+
+=method new ( [ %properties ] )
+
+Creates a new SeeAlso server. The following optional properties are supported,
+most of them to be used as OpenSearch description elements:
 
 =over 4
 
-=item ShortName
+=item B<Query>
 
-Short name of the server (truncated to 16 characters)
+A code reference to be used as query method.
 
-=item LongName
+=item B<ShortName>
 
-Long name of the server (truncated to 48 characters)
+Short name of the server (truncated to 16 characters).
 
-=item Description
+=item B<LongName>
 
-Verbal description of the server (truncated to 1024 characters)
+Long name of the server (truncated to 48 characters).
 
-=item Source
+=item B<Description>
 
-Verbal description of the source of the server (for Dublin Core element
-dc:source)
+Verbal description of the server (truncated to 1024 characters).
 
-=item DateModified
+=item B<Contact>
 
-Date/Time of last modification of the server (for qualified Dublin Core element
-Date.Modified)
+An email address at which the maintainer of the server can be reached.
 
-=item Examples
+=item C<Developer>
 
-A list of hash reference with C<id> examples and optional C<response> data.
+Human-readable name or identifier of the creator or maintainer of the server.
 
-=item Stylesheet
+=item B<Tags>
+
+A set of words that are used as keywords to identify and categorize the server.
+Tags must be a single word and are delimited by the space character (truncated
+to 256 characters).
+
+=item B<Attribution>
+
+A list of all sources or entities that should be credited for the content 
+contained in the search feed (truncated to 256 characters).
+
+=item B<Source>
+
+Verbal description of the source of the server (Dublin Core element dc:source).
+
+=item B<DateModified>
+
+Timestamp of last modification of the server (qualified Dublin Core element
+Date.Modified).
+
+=item B<Examples>
+
+A list of hash reference with C<id> examples and optional C<response> data,
+such as the following structure:
+    
+    [ 
+      { id => 'foo' }, 
+      { id => 'bar', 
+        response => [ 'bar', ['label'],['description'],['uri'] ] }
+    ]
+
+=item B<Stylesheet>
 
 By default, an client interface is returned at C</seealso.xsl>, C</seealso.js>,
 and C</seealso.css>. A link to the interface is added if no format parameter
 was given. You can disable this interface by setting the Stylesheet option to 
 undef or you set it to some URL of another XSLT file.
 
-=item Formats
+=item B<Formats>
 
-A hash reference with additional formats, for L<Plack::App::unAPI>.
-
-=item Query
-
-A code reference to use as query method.
+A hash reference with additional formats, to be used with L<Plack::App::unAPI>.
 
 =back
 
+The OpenSearch description element B<Url> is set automatically. The elements
+B<SyndicationRight>, B<AdultContent>, B<Language>, B<InputEncoding>, and
+B<OutputEncoding> are not supported.
+
 =method query ( $identifier )
 
-You are expected to implement a C<query> method. It receives a defined
-identifier (set to the empty string by default) as an argument and is expected
-to return either an Open Search Suggestions response or C<undef>.  An Open
-Search Suggestions response is an array reference with two to three elements:
+If you subclass this module, you are expected to implement a C<query> method.
+The method receives a defined identifier (set to the empty string by default)
+as an argument and is expected to return either an Open Search Suggestions
+response or C<undef>.  An Open Search Suggestions response is an array
+reference with two to three elements:
 
 =over
 
 =item
 
-The first element is the identifier, possibly normalized
+The first element is the B<identifier>, possibly normalized.
 
 =item
 
-The second, third, and fourth elements are array references with
-strings.
+The second element is an array reference with C<labels> as strings.
+
+=item
+
+The third element is an array reference with C<descriptions> as strings.
+
+=item
+
+The fourth element is an arary reference with C<URIs> as strings.
 
 =back
 
 =head1 NOTES
 
-This module sets the default MIME type for c<.xsl> files to C<text/xsl> because
+This module sets the default MIME type for C<.xsl> files to C<text/xsl> because
 browser will more likely complain otherwise. This setting is done with
 L<Plack::MIME> and it may also affect other applications.
 
 =head1 SEE ALSO
 
-This module is basically a refactored clean-up of L<SeeAlso::Server>. The
-unAPI handling is put in the module L<Plack::App::unAPI>.
+This module is basically a refactored clean-up of L<SeeAlso::Server>. The unAPI
+handling is done by module L<Plack::App::unAPI>. An introductionary article
+about unAPI can be found at L<http://www.ariadne.ac.uk/issue57/voss/>.
 
 =cut

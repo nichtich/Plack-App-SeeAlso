@@ -13,8 +13,11 @@ my $app = Plack::App::SeeAlso->new(
         my $id = shift;
         return unless $id =~ /:/;
         return [ uc($id), [ "1:$id" ], [ "2:$id" ], [ "3:$id" ] ];
-    }
+    },
+#    Stylesheet => 1,
 );
+
+sub read_file { do { local( @ARGV, $/ ) = $_[0] ; <> } }
 
 test_psgi $app, sub {
     my $cb  = shift;
@@ -26,6 +29,12 @@ test_psgi $app, sub {
     $res = $cb->(GET "/?id=ab&format=seealso");
     is( $res->code, 200, 'not found, but 200');
     is( $res->content, '["ab",[]]',, 'not found, but response' );
+
+    $res = $cb->(GET "/?id=ab");
+    my $content = $res->content;
+    chomp $content; $content .= "\n";
+    $content =~ s/<\?seealso-query-base.*\?>//m;
+    is( $content, read_file('t/unapi1.xml'), 'unAPI format list' );
 };
 
 done_testing;
