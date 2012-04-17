@@ -12,7 +12,7 @@ my $app = Plack::App::SeeAlso->new(
     Query => sub {
         my $id = shift;
         return unless $id =~ /:/;
-        return [ uc($id), [ "1:$id" ], [ "2:$id" ], [ "3:$id" ] ];
+        push_seealso [ uc($id) ], "1:$id", "2:$id", "3:$id";
     },
 #    Stylesheet => 1,
 );

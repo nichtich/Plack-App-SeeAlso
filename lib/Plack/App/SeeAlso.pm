@@ -12,10 +12,14 @@ use Plack::App::unAPI '0.3';
 use File::ShareDir qw(dist_dir);
 use Plack::Util;
 use Carp qw(croak);
+use Scalar::Util qw(blessed);
 use JSON;
 use Encode;
 
 use parent 'Plack::Component';
+use parent 'Exporter';
+
+our @EXPORT = qw(push_seealso);
 
 # properties of the server form OpenSearch Description
 our @PROPERTIES; BEGIN { @PROPERTIES = qw(Query Stylesheet Formats Examples
@@ -151,6 +155,15 @@ sub openSearchDescription {
     ];
 }
 
+sub push_seealso ($$$$) {
+    shift if blessed($_[0]);
+    my $resp = shift;
+    push @{$resp->[1]}, (shift // '');
+    push @{$resp->[2]}, (shift // '');
+    push @{$resp->[3]}, (shift // '');
+    $resp;
+}
+
 # Replace &, <, >, " by XML entities.
 sub _xmlescape {
     my $xml = shift;
@@ -182,14 +195,19 @@ was given, so you get a nice, human readable interface.
 =head1 SYNOPSIS
 
     # create SeeAlso server with code reference
+    use Plack::App::SeeAlso;
     my $app = Plack::App::SeeAlso->new( 
         Query => sub {
             my $id = shift;
             return unless $id =~ /:/; # return undef for empty response
-            # ...
+            
+            # ... create and return response            
             return [ $id, [ "label" ], 
                           [ "hello" ], 
                           [ "http://example.org" ] ];
+
+            # ... alternatively create with 'push_seealso'
+            push_seealso [$id], "label", "hello", "http://example.org";
         }, ShortName => 'My Server' 
     );
 
@@ -201,7 +219,7 @@ was given, so you get a nice, human readable interface.
     our $Description = '...';
 
     sub query {
-        my $id = shift;
+        my ($self, $id) = @_;
         # ...
     }
 
@@ -311,6 +329,15 @@ The third element is an array reference with C<descriptions> as strings.
 The fourth element is an arary reference with C<URIs> as strings.
 
 =back
+
+=method push_seealso ( $response, $label, $description, $uri )
+
+This utility method/function is exported by default. You can use it to append
+a single response item to a response array reference:
+
+    $resp = [$id,[],[],[]];
+    push_seealso $resp, $label, $descr, $uri;
+    # $resp is now [$id,[$label],[$descr],[$uri]];
 
 =head1 NOTES
 

@@ -2,6 +2,7 @@
 
 {{$NEXT}}
     Simplify and document server properties    
+    Added utility function 'push_seealso'
 
 0.01     2012-03-07
     Initial preview release at CPAN
