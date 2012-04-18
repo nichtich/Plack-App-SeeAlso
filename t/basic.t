@@ -28,7 +28,7 @@ test_psgi $app, sub {
 
     $res = $cb->(GET "/?id=ab&format=seealso");
     is( $res->code, 200, 'not found, but 200');
-    is( $res->content, '["ab",[]]',, 'not found, but response' );
+    is( $res->content, '["ab",[],[],[]]',, 'not found, but response' );
 
     $res = $cb->(GET "/?id=ab");
     my $content = $res->content;
