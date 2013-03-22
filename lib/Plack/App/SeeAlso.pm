@@ -29,7 +29,7 @@ our @PROPERTIES; BEGIN { @PROPERTIES = qw(Query Stylesheet Formats Examples
     ShortName LongName Attribution Tags Contact Description Source 
     DateModified Developer); }
 
-use Plack::Util::Accessor @PROPERTIES;
+use Plack::Util::Accessor (@PROPERTIES, 'base');
 
 # browsers will more likely complain otherwise
 use Plack::MIME;
@@ -115,7 +115,7 @@ sub call {
     Plack::Util::response_cb( $result, sub {
         my $res = shift;
         return unless $res->[0] == 300;
-        my $base = Plack::Request->new($env)->base; 
+        my $base = $self->base || Plack::Request->new($env)->base;
         my $xsl = $self->{Stylesheet};
         $xsl = '<?xml-stylesheet type="text/xsl" href="'.$xsl.'"?>';
         $xsl .= "\n<?seealso-query-base $base?>\n";
@@ -326,6 +326,12 @@ undef or you set it to some URL of another XSLT file.
 =item B<Formats>
 
 A hash reference with additional formats, to be used with L<Plack::App::unAPI>.
+
+=item C<base>
+
+A base URL to be send in the C<seealso-query-base> processing-instruction. Set to
+the HTTP query base by default. One may need to adjust this if the server runs 
+behind a proxy.
 
 =back
 
