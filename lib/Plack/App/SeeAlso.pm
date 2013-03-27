@@ -21,6 +21,8 @@ use Encode;
 use parent 'Plack::Component';
 use parent 'Exporter';
 
+use SeeAlso::Format; 
+
 our @EXPORT = qw(push_seealso);
 our @EXPORT_OK = qw(valid_seealso);
 
@@ -63,32 +65,20 @@ sub prepare_app {
     my %formats = %{ $self->{Formats} || { } };
     delete $formats{$_} for (qw(opensearchdescription seealso _));
 
-    my $app = unAPI(
-            opensearchdescription => [
-                sub { $self->openSearchDescription(@_); }
-                => 'application/opensearchdescription+xml', 
-            ],
-            seealso => [
-                sub {
-                    my $env = shift;
-                    my $id = Plack::Request->new($env)->param('id');
-                    my $res;
-                    try {
-                        $res = $self->query( $id );
-                        die 'Invalid SeeAlso response:' . Dumper($res)
-                            if defined $res and !valid_seealso($res);
-                    } catch {
-                        $env->{'psgi.errors'}->print($_);
-                    };
-                    my $json = JSON->new->encode( $res || [$id,[],[],[]] );
-                    return [ 200, [ "Content-Type" => 'text/javascript' ], [ $json ] ];
-                } => 'text/javascript' ],
+    # TODO: extend known formats: csv, redirect
+    # my $f = SeeAlso::Format->new( $_ )
+    # seealso => [ $f->app => $f->type ]
+    my $f = SeeAlso::Format->new('seealso');
+    #my $f = SeeAlso::Format::seealso->new;#('seealso');
 
-            # never return format list if format parameter given
-            _ => { always => 1 }, 
+    # never return format list if format parameter given
+    $formats{_} = { always => 1 }; 
+    $formats{opensearchdescription} = [
+        sub { $self->openSearchDescription(@_); } => 'application/opensearchdescription+xml',
+    ];
+    $formats{seealso} = [ $f->app( sub { $self->query(@_) } ), $f->type ];
 
-            %formats # additional formats
-        );
+    my $app = unAPI( %formats );
     
     $app = Plack::Middleware::JSONP->wrap($app);
 
@@ -174,16 +164,7 @@ sub push_seealso ($$$$) {
 }
 
 sub valid_seealso ($) {
-    my $resp = shift;
-    return unless (reftype($resp) || '') eq 'ARRAY' and @$resp == 4;
-    return if ref($resp->[0] // []); # identifier must be string
-    return unless (reftype($resp) || '') eq 'ARRAY';
-    foreach (1,2,3) {
-        my $a = $resp->[$_];
-        return unless (reftype($a) || '') eq 'ARRAY';
-        return if grep { ref($_ // []) } @$a; 
-    }
-    $resp;
+    return SeeAlso::Format::valid(@_);
 }
 
 # Replace &, <, >, " by XML entities.
