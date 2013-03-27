@@ -1,8 +1,8 @@
-This module implements the SeeAlso Linkserver Protocol as PSGI application.
-
-This module implements the a SeeAlso Linkserver Protocol server as PSGI
-application. SeeAlso is basically based on two HTTP protocols, 
+This Perl module implements the **SeeAlso Linkserver Protocol** as PSGI
+application. SeeAlso is basically based on two HTTP protocols,
 [unAPI](http://unapi.info) and [OpenSearch](http://opensearch.org).
+
+[![Build Status](https://travis-ci.org/nichtich/Plack-App-SeeAlso.png)](https://travis-ci.org/nichtich/Plack-App-SeeAlso)
 
 To implement a SeeAlso server with this module, just provide a query function:
 
