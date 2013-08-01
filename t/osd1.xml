@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>    
-<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" 
-    xmlns:dc="http://purl.org/dc/elements/1.1/" 
-    xmlns:dcterms="http://purl.org/dc/terms/" 
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:dcterms="http://purl.org/dc/terms/"
     xmlns:seealso="http://ws.gbv.de/seealso/schema/">
   <ShortName>The ShortName is</ShortName>
   <Contact>admin@example.com</Contact>

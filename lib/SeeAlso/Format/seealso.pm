@@ -1,10 +1,11 @@
 package SeeAlso::Format::seealso;
+#ABSTRACT: SeeAlso response format
 use strict;
 use warnings;
 
 use base 'SeeAlso::Format';
 
-sub type { 'text/javascript' } 
+sub type { 'text/javascript' }
 
 sub psgi {
     my ($self, $result) = @_;
@@ -13,3 +14,5 @@ sub psgi {
 }
 
 1;
+
+=encoding utf8

@@ -1,4 +1,5 @@
 package SeeAlso::Format::redirect;
+#ABSTRACT: HTTP redirect as response format
 
 use base 'SeeAlso::Format';
 
@@ -9,8 +10,8 @@ sub psgi {
     my ($url) = grep { $_ } @{$result->[3]};
 
     if ($url) {
-        return [302, [ 
-            Location => $url, URI => "<$url>", 
+        return [302, [
+            Location => $url, URI => "<$url>",
             'Content-Type' => $self->format
         ], [ "<html><head><meta http-equiv='refresh' content='0; URL=$url'></head></html>" ]
         ]
@@ -20,3 +21,5 @@ sub psgi {
 }
 
 1;
+
+=encoding utf8

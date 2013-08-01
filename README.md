@@ -1,27 +1,6 @@
-This Perl module implements the **SeeAlso Linkserver Protocol** as PSGI
+Plack::App::SeeAlso implements a SeeAlso Linkserver Protocol webservice as PSGI
 application. SeeAlso is basically based on two HTTP protocols,
 [unAPI](http://unapi.info) and [OpenSearch](http://opensearch.org).
 
 [![Build Status](https://travis-ci.org/nichtich/Plack-App-SeeAlso.png)](https://travis-ci.org/nichtich/Plack-App-SeeAlso)
-
-To implement a SeeAlso server with this module, just provide a query function:
-
-    $ echo 'use Plack::App::SeeAlso;
-    Plack::App::SeeAlso->new( Query => sub {
-        my $id = shift;
-        return unless $id =~ /:/;
-        # ...
-        return [ $id, [ "label" ], [ "hello" ], [ "http://example.org" ] ];
-    } );' > app.psgi
-    
-    $ plackup app.psgi &
-    HTTP::Server::PSGI: Accepting connections at http://0:5000/
-    
-    $ curl 'http://0:5000/?format=seealso&id=foo:bar'
-    ["foo:bar",["label"],["hello"],["http://example.org"]]
-
-    $ curl 'http://0:5000/?format=seealso&id=foo&callback=bar'
-    bar(["foo",[],[],[]])
-
-The module also contains a client interface for easy debugging. See the 
-module's documentation for details.
+[![Coverage Status](https://coveralls.io/repos/nichtich/Plack-App-SeeAlso/badge.png?branch=master)](https://coveralls.io/r/nichtich/Plack-App-SeeAlso?branch=master)

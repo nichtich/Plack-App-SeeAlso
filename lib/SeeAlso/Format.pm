@@ -8,6 +8,9 @@ use Data::Dumper;
 
 use Scalar::Util qw(reftype);
 
+use SeeAlso::Format::seealso;
+use SeeAlso::Format::redirect;
+
 sub valid {
     my $resp = shift;
     return unless (reftype($resp) || '') eq 'ARRAY' and @$resp == 4;
@@ -16,7 +19,7 @@ sub valid {
     foreach (1,2,3) {
         my $a = $resp->[$_];
         return unless (reftype($a) || '') eq 'ARRAY';
-        return if grep { ref($_ // []) } @$a; 
+        return if grep { ref($_ // []) } @$a;
     }
     $resp;
 }
@@ -27,12 +30,8 @@ sub new {
 
     if (@_) {
         $class = "SeeAlso::Format::".lc($_[0]);
-        
-use SeeAlso::Format::seealso;
-use SeeAlso::Format::redirect;
-# TODO
-#        require $class; 
-    
+        # TODO
+        #  require $class;
     }
 
     bless { }, $class;
@@ -66,3 +65,5 @@ sub app {
 }
 
 1;
+
+=encoding utf8
