@@ -1,9 +1,10 @@
+use strict;
 package SeeAlso::Format::redirect;
 #ABSTRACT: HTTP redirect as response format
 
 use base 'SeeAlso::Format';
 
-sub format { 'text/html' }
+sub type { 'text/html' }
 
 sub psgi {
     my ($self, $result) = @_;

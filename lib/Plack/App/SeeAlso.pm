@@ -3,12 +3,12 @@ use warnings;
 package Plack::App::SeeAlso;
 #ABSTRACT: SeeAlso Server as PSGI application
 
-use feature ':5.10';
+use v5.10.1;
 
 use Plack::Request;
 use Plack::Middleware::JSONP;
 use Plack::Middleware::Static;
-use Plack::App::unAPI qw(0.3);
+use Plack::App::unAPI;
 use File::ShareDir qw(dist_dir);
 use Plack::Util;
 use Carp qw(croak);
@@ -37,6 +37,33 @@ use Plack::Util::Accessor (@PROPERTIES, 'base');
 use Plack::MIME;
 Plack::MIME->add_type( '.xsl' => 'text/xsl' );
 
+# TODO: make subclass of Plack::App::unAPI, so this makes more sense
+sub formats {
+    my $self = shift;
+
+    my $formats = { %{ $self->{Formats} || { } } };
+
+    # never return format list if format parameter given
+    $formats->{_} = { always => 1 };
+    $formats->{opensearchdescription} = [
+        sub { $self->openSearchDescription(@_); } => 'application/opensearchdescription+xml',
+    ];
+
+    $formats->{seealso} = 1;
+
+    # Enable SeeAlso::Format::$name modules
+    foreach my $name (keys %$formats) {
+        next if $name eq 'opensearchdescription' or $name eq '_';
+        if ( !ref $formats->{$name} ) {
+            my $f = SeeAlso::Format->new($name);
+            $formats->{$name} = [ $f->app( sub { $self->query(@_) } ), $f->type ];
+        }
+    }
+
+    return $formats;
+}
+
+
 sub prepare_app {
     my $self = shift;
     return if $self->{app}; # already initialized
@@ -44,7 +71,7 @@ sub prepare_app {
     # get default values from module variables
     $self->{Stylesheet} = 'seealso.xsl' unless exists $self->{Stylesheet};
     foreach (@PROPERTIES) {
-        no strict 'refs';
+        no strict 'refs'; ## no critic
         $self->$_( ${ref($self)."::$_"} // '' ) unless exists $self->{$_};
     }
 
@@ -62,28 +89,15 @@ sub prepare_app {
     #   DateModified
     #   Examples
 
-    my %formats = %{ $self->{Formats} || { } };
-    delete $formats{$_} for (qw(opensearchdescription seealso _));
-
-    # TODO: extend known formats: csv, redirect
-    # my $f = SeeAlso::Format->new( $_ )
-    # seealso => [ $f->app => $f->type ]
-    my $f = SeeAlso::Format->new('seealso');
-    #my $f = SeeAlso::Format::seealso->new;#('seealso');
-
-    # never return format list if format parameter given
-    $formats{_} = { always => 1 };
-    $formats{opensearchdescription} = [
-        sub { $self->openSearchDescription(@_); } => 'application/opensearchdescription+xml',
-    ];
-    $formats{seealso} = [ $f->app( sub { $self->query(@_) } ), $f->type ];
-
-    my $app = unAPI( %formats );
+    my $formats = $self->formats;
+    
+    my $app = unAPI( %$formats );
 
     $app = Plack::Middleware::JSONP->wrap($app);
 
     if ($self->{Stylesheet}) {
-        $app = Plack::Middleware::Static->wrap( $app,
+        $app = Plack::Middleware::Static->wrap(
+            $app,
             path => qw{seealso\.(js|xsl|css)$},
             root => dist_dir('Plack-App-SeeAlso')
         );
@@ -94,7 +108,7 @@ sub prepare_app {
 
 sub query {
     my ($self, $id) = @_;
-    return ( $self->{Query} ? $self->{Query}->( $id ) : [$id,[]] );
+    return ( $self->{Query} ? $self->{Query}->( $id ) : [$id,[],[],[]] );
 }
 
 sub call {
@@ -113,6 +127,34 @@ sub call {
     } ) if $self->{Stylesheet};
 
     return $result;
+}
+
+use JSON;
+use Data::Dumper;
+
+# always returns a valid SeeAlso response
+sub safe_query {
+    my ($self, $id) = @_;
+
+    my $result;
+    try {
+        $result = $self->query->( $id );
+        die 'Invalid SeeAlso response:' . Dumper($result)
+            if defined $result and !valid($result);
+    } catch {
+        # TODO: where to log ?!
+#        if $_ERRORS
+#        $env->{'psgi.errors'}->print($_);
+    };
+
+     return $result ? $result : [$id,[],[],[]];
+}
+
+sub format_seealso { # must return a PSGI response
+    my ($self, $id) = @_;
+    my $result = $self->safe_query( $id );
+    my $json = JSON->new->encode( $result );
+    return [ 200, [ 'Content-Type' => 'text/javascript' ], [ $json ] ];
 }
 
 sub openSearchDescription {
@@ -155,7 +197,7 @@ sub openSearchDescription {
     ];
 }
 
-sub push_seealso ($$$$) {
+sub push_seealso ($$$$) { ## no critic
     my $resp = shift;
     push @{$resp->[1]}, (shift // '');
     push @{$resp->[2]}, (shift // '');
@@ -163,7 +205,7 @@ sub push_seealso ($$$$) {
     $resp;
 }
 
-sub valid_seealso ($) {
+sub valid_seealso ($) { ## no critic
     return SeeAlso::Format::valid(@_);
 }
 

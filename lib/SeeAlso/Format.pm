@@ -1,12 +1,13 @@
-package SeeAlso::Format;
 use strict;
-use warnings;
+package SeeAlso::Format;
+#ABSTRACT: Response format
 
 use Plack::Request;
 use Try::Tiny;
 use Data::Dumper;
 
 use Scalar::Util qw(reftype);
+use Carp qw(croak);
 
 use SeeAlso::Format::seealso;
 use SeeAlso::Format::redirect;
@@ -24,14 +25,13 @@ sub valid {
     $resp;
 }
 
-
 sub new {
     my $class = shift;
 
     if (@_) {
         $class = "SeeAlso::Format::".lc($_[0]);
-        # TODO
-        #  require $class;
+        eval "require $class"; 
+        croak $@ if $@;
     }
 
     bless { }, $class;
@@ -60,10 +60,27 @@ sub app {
         };
         $result = [$id,[],[],[]] unless $result;
 
-        return $self->psgi( $result || [$id,[],[],[]] );
+        return $self->psgi( $result );
     }
 }
 
 1;
+
+=head1 SYNOPSIS
+
+    {
+        package SeeAlso::Format::plaintext;
+
+        sub type { 'text/plain' };
+        sub psgi { [200,[],[]] } # TODO
+    }
+
+    use SeeAlso::Format;
+    my $plaintext = SeeAlso::Format->new('plaintext');
+
+=head1 DESCRIPTION
+
+Subclasses must implement a method C<type> that returns a mime type, and a
+method C<psgi> that returns a L<PSGI> response, given a SeeAlso response.
 
 =encoding utf8

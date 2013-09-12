@@ -1,7 +1,6 @@
+use strict;
 package SeeAlso::Format::seealso;
 #ABSTRACT: SeeAlso response format
-use strict;
-use warnings;
 
 use base 'SeeAlso::Format';
 
