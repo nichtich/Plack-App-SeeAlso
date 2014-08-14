@@ -14,7 +14,6 @@ use Plack::Util;
 use Carp qw(croak);
 use Scalar::Util qw(blessed reftype);
 use Try::Tiny;
-use Data::Dumper;
 use JSON;
 use Encode;
 
@@ -41,18 +40,27 @@ sub prepare_app {
     my $self = shift;
     return if $self->{app}; # already initialized
 
-    # get default values from module variables
+    # get default configuration from module variables
     $self->{Stylesheet} = 'seealso.xsl' unless exists $self->{Stylesheet};
     foreach (@PROPERTIES) {
         no strict 'refs';
-        $self->$_( ${ref($self)."::$_"} // '' ) unless exists $self->{$_};
+        unless (exists $self->{$_}) {
+            $self->{$_} = ${ref($self)."::$_"} // '';
+        }
     }
 
+    # validate and normalize configuration
     $self->{ShortName}   = sprintf '%.16s',   $self->{ShortName} // '';
     $self->{LongName}    = sprintf '%.48s',   $self->{LongName} // '' ;
     $self->{Description} = sprintf '%.1024s', $self->{Description} // '';
     $self->{Tags}        = sprintf '%.256s',  $self->{Tags} // '';
     $self->{Attribution} = sprintf '%.256s',  $self->{Attribution} // '';
+
+    my $examples = $self->{Examples};
+    $examples = [] unless ref $examples and reftype $examples eq 'ARRAY';
+    $self->{Examples}    = [ 
+        grep { ref $_ and reftype($_) eq 'HASH' and $_->{id} } @$examples
+    ];
 
     # TODO: validate
     #   Stylesheet
@@ -60,7 +68,6 @@ sub prepare_app {
     #   Contact
     #   Source
     #   DateModified
-    #   Examples
 
     my %formats = %{ $self->{Formats} || { } };
     delete $formats{$_} for (qw(opensearchdescription seealso _));
@@ -79,7 +86,6 @@ sub prepare_app {
     $formats{seealso} = [ $f->app( sub { $self->query(@_) } ), $f->type ];
 
     my $app = unAPI( %formats );
-
     $app = Plack::Middleware::JSONP->wrap($app);
 
     if ($self->{Stylesheet}) {
@@ -105,7 +111,7 @@ sub call {
     Plack::Util::response_cb( $result, sub {
         my $res = shift;
         return unless $res->[0] == 300;
-        my $base = $self->base || Plack::Request->new($env)->base;
+        my $base = $self->{base} || Plack::Request->new($env)->base;
         my $xsl = $self->{Stylesheet};
         $xsl = '<?xml-stylesheet type="text/xsl" href="'.$xsl.'"?>';
         $xsl .= "\n<?seealso-query-base $base?>\n";
@@ -126,8 +132,7 @@ sub openSearchDescription {
     xmlns:seealso="http://ws.gbv.de/seealso/schema/">';
 
     my @prop = (
-        map { $_ => $_ } qw(ShortName LongName Description Tags
-            Contact Developer Attribution),
+        map { $_ => $_ } qw(ShortName LongName Description Tags Contact Developer Attribution),
         DateModified => 'dcterms:modified',
         Source       => 'dc:source',
     );
@@ -138,7 +143,7 @@ sub openSearchDescription {
         push @xml, "  <$tag>"._xmlescape($value)."</$tag>";
     }
 
-    foreach (@{ $self->Examples || [] }) {
+    foreach (@{ $self->{Examples} || [] }) {
         my $id = _xmlescape($_->{id});
         push @xml, "<Query role=\"example\" searchTerms=\"$id\" />";
     }
